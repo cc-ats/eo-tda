@@ -12,7 +12,7 @@ def get_tdm(mf, amplitude):
     for i in range(len(amplitude)):
         tdm.append(numpy.einsum('ij,jk,lk->il', orbo, amplitude[i][0], orbv, optimize=True))
     return tdm
-    
+
 def ie_mo_distribution(aomf, coeff_ao_lo, imp_list, verbose=10):
     ovlp = aomf.get_ovlp()
     mol = aomf.mol
@@ -70,9 +70,9 @@ def get_mopair(mf, emb_basis, mhomo=0, plumo=0):
     nelec     = mf.mol.nelectron // 2
     homo = mo_energy[nelec - 1 - mhomo]
     lumo = mo_energy[nelec + plumo]
-    
+
     if mf.term == 'gas' :
-        return homo, lumo 
+        return homo, lumo
     else :
         ovlp = mf.get_ovlp()
         mo_coeff  = mf.mo_coeff
@@ -92,7 +92,7 @@ def get_mopair(mf, emb_basis, mhomo=0, plumo=0):
         imp_lumo    = numpy.einsum('ji,jk,k->i', coeff_ao_eo_imp, ovlp, lumo_coeff, optimize=True)
         bath_lumo   = numpy.einsum('ji,jk,k->i', coeff_ao_eo_bath, ovlp, lumo_coeff, optimize=True)
         env_lumo    = numpy.einsum('ji,jk,k->i', coeff_ao_eo_env, ovlp, lumo_coeff, optimize=True)
-        
+
         w2imphomo   = numpy.einsum('n,n->', imp_homo, imp_homo, optimize=True)
         w2bathhomo  = numpy.einsum('n,n->', bath_homo, bath_homo, optimize=True)
         w2envhomo   = numpy.einsum('n,n->', env_homo, env_homo, optimize=True)
@@ -100,7 +100,7 @@ def get_mopair(mf, emb_basis, mhomo=0, plumo=0):
         w2bathlumo  = numpy.einsum('n,n->', bath_lumo, bath_lumo, optimize=True)
         w2envlumo   = numpy.einsum('n,n->', env_lumo, env_lumo, optimize=True)
         w2 = [w2imphomo, w2bathhomo, w2envhomo, w2implumo, w2bathlumo, w2envlumo]
-        return homo, lumo, w2   
+        return homo, lumo, w2
 
 def output(gasmf, aomf, eomf, emb_basis, amp_gas_tda, amp_ao_tda, amp_eo_tda, egas, eao, eeo, verbose=10):
     log = logger.new_logger(verbose=verbose)
@@ -120,7 +120,7 @@ def output(gasmf, aomf, eomf, emb_basis, amp_gas_tda, amp_ao_tda, amp_eo_tda, eg
     log.debug('ao    HOMO: %7.5f %7.5f %7.5f %7.5f', w2ao[0], w2ao[1], w2ao[2], w2ao[0] + w2ao[1] + w2ao[2])
     log.debug('eo    LUMO: %7.5f %7.5f %7.5f %7.5f', w2eo[3], w2eo[4], w2eo[5], w2eo[3] + w2eo[4] + w2eo[5])
     log.debug('ao    LUMO: %7.5f %7.5f %7.5f %7.5f', w2ao[3], w2ao[4], w2ao[5], w2ao[3] + w2ao[4] + w2ao[5])
-    
+
     gashomo, gaslumo     = get_mopair(gasmf, emb_basis, mhomo=1, plumo=1)
     aohomo, aolumo, w2ao = get_mopair(aomf, emb_basis, mhomo=1, plumo=1)
     eohomo, eolumo, w2eo = get_mopair(eomf, emb_basis, mhomo=1, plumo=1)
@@ -140,7 +140,7 @@ def output(gasmf, aomf, eomf, emb_basis, amp_gas_tda, amp_ao_tda, amp_eo_tda, eg
     log.debug('\nExcitation energy for each state in gas, eo, ao')
     for i in range(len(eao)):
         log.debug('state %3d: %7.4f eV    %7.4f eV   %7.4f eV', i+1, egas[i] * 27.2114, eeo[i] * 27.2114, eao[i] * 27.2114)
-    
+
     tdm_gas_tda = get_tdm(gasmf, amp_gas_tda)
     tdm_ao = get_tdm(aomf, amp_ao_tda)
     tdm_eo = get_tdm(eomf, amp_eo_tda)
@@ -151,19 +151,19 @@ def output(gasmf, aomf, eomf, emb_basis, amp_gas_tda, amp_ao_tda, amp_eo_tda, eg
         size = numpy.shape(tdm_gas_tda[i])
         tdm_gasaoi[:size[0],:size[1]] = tdm_gas_tda[i]
         tdm_gasao.append(tdm_gasaoi)
-                
+
     print('Tr(R_eoSR_ao.TS) =')
     for i in range(len(tdm_eo)):
         for j in range(len(tdm_ao)):
             print('{:.4f}'.format(abs(2 * numpy.einsum('ij,jk,lk,li->', tdm_eo[i], ovlp_ao, tdm_ao[j], ovlp_ao, optimize=True))),end=' ')
         print('')
-        
+
     print('Tr(R_aoSR_gasao.TS) =')
     for i in range(len(tdm_ao)):
         for j in range(len(tdm_gasao)):
             print('{:.4f}'.format(abs(2 * numpy.einsum('ij,jk,lk,li->', tdm_ao[i], ovlp_ao, tdm_gasao[j], ovlp_ao, optimize=True))),end=' ')
         print('')
-        
+
     print('Tr(R_eoSR_gasao.TS) =')
     for i in range(len(tdm_eo)):
         for j in range(len(tdm_gasao)):
@@ -236,7 +236,7 @@ def ibe_charge_transfer_number_mul(mf, amplitude, emb_basis, verbose=10):
     ovlp_eo = numpy.einsum('ij,jk,kl->il', coeff_ao_eo.T, ovlp, coeff_ao_eo, optimize=True)
     bound1 = numpy.shape(coeff_ao_eo_imp)[1]
     bound2 = numpy.shape(coeff_ao_eo_imp)[1] + numpy.shape(coeff_ao_eo_bath)[1]
-    
+
     mul_imp_occ = numpy.zeros((len(occidx),len(occidx)))
     mul_imp_vir = numpy.zeros((len(viridx),len(viridx)))
     mul_bat_occ = numpy.zeros((len(occidx),len(occidx)))
@@ -302,7 +302,7 @@ def energy_decomponent(mf, energy, amplitude, verbose=10):
         dm0 = mf.make_rdm1(mo_coeff0, mo_occ0)
         n, exc, vf = ni.nr_rks(mf.mol, mf.grids, mf.xc, dm0)
         return vf
-    
+
     def get_tda_f2e(mf, dm1):
         ni = mf._numint
         mf.verbose=0
@@ -319,7 +319,7 @@ def energy_decomponent(mf, energy, amplitude, verbose=10):
         vf = 0.5 * ni.nr_rks_fxc_st(mol, mf.grids, mf.xc, dm0, dm1, 0, singlet=True,
                                     rho0=rho0, vxc=vxc, fxc=fxc)
         return vf
-    
+
     def get_tda_jk(mf, dm1):
         ni = mf._numint
         mf.verbose=0
@@ -338,7 +338,7 @@ def energy_decomponent(mf, energy, amplitude, verbose=10):
             vj = mf.get_j(mol, dm1, hermi=0)
             vk = numpy.zeros_like(vj)
         return vj, 0.5 * vk
-    
+
     def get_1e(mf):
 
         def get_ia(mf, matrix_ao):
@@ -351,7 +351,7 @@ def energy_decomponent(mf, energy, amplitude, verbose=10):
             mvv = matrix_mo[viridx[:,None],viridx]
             m_ia = mvv.diagonal() - moo.diagonal()[:,None]
             return m_ia
-        
+
         vj, vk = get_tda_jk(mf, mf.make_rdm1(mf.mo_coeff, mf.mo_occ))
         vf = get_tda_f1e(mf)
         h_ia = get_ia(mf, mf.get_hcore())
@@ -373,7 +373,7 @@ def energy_decomponent(mf, energy, amplitude, verbose=10):
         vkov = lib.einsum('pq,po,qv->ov', vkao, orbo.conj(), orbv)
         vfov = lib.einsum('pq,po,qv->ov', vfao, orbo.conj(), orbv)
         return vjov, vkov, vfov
-    
+
     log = logger.new_logger(verbose=verbose)
     log.debug('TDA energy decomponent for %3s with %6s', mf.term, mf.xc)
     for i in range(len(amplitude)):
@@ -388,4 +388,4 @@ def energy_decomponent(mf, energy, amplitude, verbose=10):
         w2f =   2 * numpy.einsum('ij,ij->', amplitude[i][0], vfov, optimize=True) * 27.2114
         error = energy[i] * 27.2114 - (w1h+w1j+w1k+w1f+w2j+w2k+w2f)
         log.debug('w1h = %7.3f eV, w1j = %7.3f eV, w1k = %7.3f eV, w1f = %7.3f eV, w2j = %7.3f eV, w2k = %7.3f eV, w2f = %7.3f eV, error = %7.3f eV', w1h, w1j, w1k, w1f, w2j, w2k, w2f, error)
-  
+

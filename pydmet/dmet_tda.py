@@ -40,7 +40,7 @@ def gas_mol(atomimp, charge, xcf='hf', basis='sto3g', TOL=1e-6, verbose=0):
     mf.conv_tol_grad = TOL
     mf.xc = xcf
     mf.kernel()
-    
+
     print('gas nelec =', mol.nelectron)
     print('gas AO shape =', numpy.shape(mf.mo_coeff))
     return mf
@@ -178,7 +178,7 @@ def _gen_rhf_response(mf, mo_coeff=None, mo_occ=None,
                 return -.5 * mf.get_k(mol, dm1, hermi=hermi)
 
     return vind
-       
+
 def make_emb_prob(aomf, imp_list, TOL):
     aomol = aomf.mol
     coeff_ao_lo = build_lo(aomf, TOL)
@@ -190,7 +190,7 @@ def make_emb_prob(aomf, imp_list, TOL):
 
     imp_lo_idx = imp_lo_idx_list[0]
     env_lo_idx = imp_lo_idx_list[1]
-    
+
     from pydmet import rhf
     emb_basis = rhf.make_emb_basis(aomf, imp_lo_idx, env_lo_idx, coeff_ao_lo)
     #emb_basis = rhf.make_new_emb_basis(aomf, imp_lo_idx, env_lo_idx, coeff_ao_lo)
@@ -256,11 +256,11 @@ def solve_tda(mf, nstates, term, verbose=10):
     #analysis_tool.get_nto_fig(mf, tdobj, excited_energy)
     return excited_energy, amplitude
 
-def runtda(atom, atomimp, charge, imp_list, xcf='hf', basis='sto3g', nstates=3, tol=1e-5, verbose=0):
+def runtda(atom, atomimp, charge, imp_list, xcf='hf', basis='sto3g', nstates=3, tol=1e-5, verbose=0, nelectrons=0):
     ''' restricted DMET-TDA
 
-    Args:    
-        
+    Args:
+
         atom : str or list
             atoms coordinate for full system.
         atomimp : str or list
@@ -279,7 +279,7 @@ def runtda(atom, atomimp, charge, imp_list, xcf='hf', basis='sto3g', nstates=3, 
             SCF convergence tol for energy change and energy graident, default is 1e-5.
     '''
     TOL = os.environ.get("TOL", tol)
-    
+
     gasmf = gas_mol(atomimp, charge, xcf, basis, TOL, verbose)
     ene_gas_tda, amp_gas_tda = solve_tda(gasmf, nstates, term='gas')
 
@@ -288,6 +288,17 @@ def runtda(atom, atomimp, charge, imp_list, xcf='hf', basis='sto3g', nstates=3, 
 
     emb_basis, emb_prob, eomf = get_eomf(aomf, imp_list, TOL)
     ene_eo_tda, amp_eo_tda = solve_tda(eomf, nstates, term='eo')
-    
+
     from pydmet import analysis_tool
     analysis_tool.output(gasmf, aomf, eomf, emb_basis, amp_gas_tda, amp_ao_tda, amp_eo_tda, ene_gas_tda, ene_ao_tda, ene_eo_tda)
+
+    from pydmet.embedding import Embedding
+    embed = Embedding(aomf, imp_list, TOL)
+    eomf = embed.get_eomf(aomf)
+    ene_eo_tda, amp_eo_tda = solve_tda(eomf, nstates, term='eo')
+    analysis_tool.output(gasmf, aomf, eomf, emb_basis, amp_gas_tda, amp_ao_tda, amp_eo_tda, ene_gas_tda, ene_ao_tda, ene_eo_tda)
+
+    embed = Embedding(aomf, imp_list, TOL, 1, nelectrons)
+    eomf = embed.get_eomf(aomf)
+    ene_eo_tda, amp_eo_tda = solve_tda(eomf, nstates, term='eo')
+    #analysis_tool.output(gasmf, aomf, eomf, emb_basis, amp_gas_tda, amp_ao_tda, amp_eo_tda, ene_gas_tda, ene_ao_tda, ene_eo_tda)

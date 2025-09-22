@@ -8,7 +8,7 @@ def get_eri(mf, orbs=None, aosym=4, dataname="eri"):
 
     Args:
         coeffs : the coefficients of the given basis
-    
+
     Returns:
         eri : the 2-electron integrals in the given basis
     """
@@ -20,7 +20,7 @@ def get_eri(mf, orbs=None, aosym=4, dataname="eri"):
     else:
         if isinstance(mf.mol, pyscf.gto.Mole):
             eri = pyscf.ao2mo.kernel(
-                mf.mol, orbs, aosym=aosym, 
+                mf.mol, orbs, aosym=aosym,
                 dataname=dataname,
                 verbose=mf.verbose
                 )
@@ -28,10 +28,10 @@ def get_eri(mf, orbs=None, aosym=4, dataname="eri"):
         else:
             assert mf._eri is not None
             eri = pyscf.ao2mo.kernel(
-                mf._eri, orbs, aosym=aosym, 
+                mf._eri, orbs, aosym=aosym,
                 verbose=mf.verbose
                 )
-    
+
     assert eri is not None
     return eri
 
@@ -59,7 +59,7 @@ def make_emb_basis(mf, imp_lo_idx, env_lo_idx, coeff_ao_lo):
     dm_imp_imp_lo = dm_ll_lo[imp_imp_lo_ix]
     dm_env_env_lo = dm_ll_lo[env_env_lo_ix]
     dm_imp_env_lo = dm_ll_lo[imp_env_lo_ix]
-    
+
     assert dm_imp_imp_lo.shape == (nlo_imp, nlo_imp)
     assert dm_env_env_lo.shape == (nlo_env, nlo_env)
     assert dm_imp_env_lo.shape == (nlo_imp, nlo_env)
@@ -69,11 +69,11 @@ def make_emb_basis(mf, imp_lo_idx, env_lo_idx, coeff_ao_lo):
     #coeff_lo_eo_env_bath = vh.T
     #coeff_lo_eo_env_bath = vhf[:numpy.shape(coeff_lo_eo_imp_imp)[0],:].T
     #coeff_lo_eo_env_env = vhf[numpy.shape(coeff_lo_eo_imp_imp)[0]:,:].T
-    
+
     index_s = numpy.where(sf>0)[0]
     coeff_lo_eo_env_bath = vhf[index_s,:].T
     coeff_lo_eo_env_env = numpy.delete(vhf, index_s, axis=0).T
-    
+
     coeff_ao_lo_imp = coeff_ao_lo[:, imp_lo_idx]
     coeff_ao_lo_env = coeff_ao_lo[:, env_lo_idx]
     coeff_ao_eo_imp  = numpy.dot(coeff_ao_lo_imp, coeff_lo_eo_imp_imp)
@@ -108,7 +108,7 @@ def make_emb_basis(mf, imp_lo_idx, env_lo_idx, coeff_ao_lo):
     emb_basis.dm_ll_lo = dm_ll_lo
 
     return emb_basis
-    
+
 def make_new_emb_basis(mf, imp_lo_idx, env_lo_idx, coeff_ao_lo):
 
     nlo_imp = len(imp_lo_idx)
@@ -124,7 +124,7 @@ def make_new_emb_basis(mf, imp_lo_idx, env_lo_idx, coeff_ao_lo):
     '''
     for i in range(len(s)-1):
         if s[i] / s[i+1] > 1e5 :
-            s0 = len(s) - i - 1 
+            s0 = len(s) - i - 1
             break
     print(f'\n{s0:3.0f} low entanglement LO in impurity get from 1-RDM')
     '''
@@ -155,7 +155,7 @@ def make_new_emb_basis(mf, imp_lo_idx, env_lo_idx, coeff_ao_lo):
     dm_imp_imp_lo = dm_ll_lo[imp_imp_lo_ix]
     dm_env_env_lo = dm_ll_lo[env_env_lo_ix]
     dm_imp_env_lo = dm_ll_lo[imp_env_lo_ix]
-    
+
     assert dm_imp_imp_lo.shape == (nlo_imp, nlo_imp)
     assert dm_env_env_lo.shape == (nlo_env, nlo_env)
     assert dm_imp_env_lo.shape == (nlo_imp, nlo_env)
@@ -166,7 +166,7 @@ def make_new_emb_basis(mf, imp_lo_idx, env_lo_idx, coeff_ao_lo):
     index_s = numpy.where(sf>0)[0]
     coeff_lo_eo_env_bath = vhf[index_s,:].T
     coeff_lo_eo_env_env = numpy.delete(vhf, index_s, axis=0).T
-    
+
     coeff_ao_lo_imp = coeff_ao_lo[:, imp_lo_idx]
     coeff_ao_lo_env = coeff_ao_lo[:, env_lo_idx]
     coeff_ao_eo_imp  = numpy.dot(coeff_ao_lo_imp, coeff_lo_eo_imp_imp)
@@ -208,10 +208,10 @@ def make_new_emb_basis(mf, imp_lo_idx, env_lo_idx, coeff_ao_lo):
     return emb_basis
 
 def make_emb_prob(mf, emb_basis=None):
-    
+
     dm_ll_ao = emb_basis.dm_ll_ao
     dm_ll_lo = emb_basis.dm_ll_lo
-    
+
     assert dm_ll_lo is not None
     assert dm_ll_ao is not None
 
@@ -241,7 +241,7 @@ def make_emb_prob(mf, emb_basis=None):
 
     assert nelec % 2 == 0
     nelecs = (nelec // 2, nelec // 2)
-    
+
     from pydmet.embedding import EmbeddingProblem
     emb_prob = EmbeddingProblem()
     emb_prob.neo    = neo
