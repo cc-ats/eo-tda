@@ -155,12 +155,13 @@ if __name__ == '__main__':
         xyzfile = sys.argv[1]
         symbols, coords = read_symbols_coords(xyzfile)
         atom = build_atom(symbols, coords)
-        frgm_idx = [list(range(1, 9))]
+        frgm_idx = [list(range(8))]
         for i in range(24):
-            frgm_idx.append([9+i*3, 10+i*3, 11+i*3])
+            frgm_idx.append([8+i*3, 9+i*3, 10+i*3])
 
         basis = 'def2-svpd'
         nelectrons[0] = 15
+
 
     mol = gto.M(
         atom = atom,
@@ -224,10 +225,10 @@ if __name__ == '__main__':
     coeff_spade_imp, coeff_spade_env, vt_2 = get_spade(coeff_mo_in_ao, None, ovlp, env_lo_idx, nocc)
     print('coeff_spade_imp:', coeff_spade_imp[0].shape, coeff_spade_imp[1].shape, 'coeff_spade_env:', coeff_spade_env[0].shape, coeff_spade_env[1].shape)
 
-    print_matrix('vt1:', vt_1[0].T)
-    print_matrix('vt2:', vt_2[0].T)
-    s2 = np.einsum('ik,jk->ij', vt_1[0], vt_2[0])
-    print_matrix('s2:', s2[:5,-5:])
+    #print_matrix('vt1:', vt_1[0].T)
+    #print_matrix('vt2:', vt_2[0].T)
+    #s2 = np.einsum('ik,jk->ij', vt_1[0], vt_2[0])
+    #print_matrix('s2:', s2[:5,-5:])
 
     fock_in_ao = mf.get_fock()
     coeff_pod_imp, coeff_pod_env = get_projection_diabatization(fock_in_ao, None, coeff_mo_in_ao, None, ovlp, [imp_lo_idx, env_lo_idx], nelectrons, direction=1)
@@ -236,13 +237,13 @@ if __name__ == '__main__':
     weights = get_solvent_contribution(mol, frgm_idx, coeff_pod_env[1])
     print_matrix('weights:', weights)
 
-    print_matrix('ovlp:', np.einsum('mi,mj->ij', coeff_pod_imp[0], coeff_pod_env[1]))
+    #print_matrix('ovlp:', np.einsum('mi,mj->ij', coeff_pod_imp[0], coeff_pod_env[1]))
 
     from pydmet.dmet_tda import runtda
     nstates = 3
     imp_list = [frgm_idx[0], [x for l in frgm_idx[1:] for x in l]]
 
-    geom = atom.split('\n')[1:]
+    geom = atom.split(';')[:-1]
     atomimp = ''
     for i in imp_list[0]:
         atomimp += geom[i]
