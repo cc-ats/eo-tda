@@ -91,13 +91,14 @@ class Embedding():
         neleca, nelecb = nelec//2, nelec//2 # restricted
 
         ovlp_ao = mf.get_ovlp()
-        hcore_ao = mf.get_hcore()
+        #hcore_ao = mf.get_hcore()
         fock_ao  = mf.get_fock()
 
         coeff_eo_in_ao = self.coeff_eo_in_ao
-        hcore_eo = np.einsum('mi,mn,nj->ij', coeff_eo_in_ao, hcore_ao, coeff_eo_in_ao)
-        fock_eo = np.einsum('mi,mn,nj->ij', coeff_eo_in_ao, fock_ao, coeff_eo_in_ao)
-        fock_ao = np.einsum('mn,ni,ij,lj,ls->ms', ovlp_ao, coeff_eo_in_ao, fock_eo, coeff_eo_in_ao, ovlp_ao)
+        # (C_eo *  C_eo^T) * S as the projector from the right
+        proj = np.einsum('mi,ni,nl->ml', coeff_eo_in_ao, coeff_eo_in_ao, ovlp_ao)
+        fock_ao = np.einsum('nm,nl,ls->ms', proj, fock_ao, proj)
+
         from scipy.linalg import eigh
         mo_energy, mo_coeff = eigh(fock_ao, ovlp_ao)
         zero_list = np.where(abs(mo_energy) < 10 ** (-7))[0]
@@ -106,6 +107,8 @@ class Embedding():
         mo_occ = np.zeros_like(mo_energy)
         for i in range(neleca):
             mo_occ[i] = 2
+
+        print_matrix('mo_energy:', mo_energy)
 
         mol = mf.mol.copy()
         mol.nelectron = nelec # change effective electrons
