@@ -8,22 +8,19 @@ from wavefunction_analysis.utils import print_matrix, get_ortho_basis
 #from wavefunction_analysis.utils.pyscf_parser import read_molecule, build_atom
 
 def get_spade(coeff_mo_in_ao, coeff_lo_in_ao, ovlp_ao, imp_lo_idx, nocc):
-    if not isinstance(coeff_lo_in_ao, np.ndarray):
-        s_half = get_ortho_basis(ovlp_ao)[0]
-        coeff_lo_in_ao = np.einsum('ij,jk->ik', s_half, coeff_mo_in_ao)
+    coeff_lo_in_mo = np.einsum('mp,mn,nq->pq', coeff_lo_in_ao, ovlp_ao, coeff_mo_in_ao)
 
     vt_all = []
     coeff_spade_imp, coeff_spade_env = [], []
     # loop over for occupied and virtual orbitals
-    for (i0, i1) in [(0, nocc), (nocc, coeff_lo_in_ao.shape[1])]:
-        coeff_imp = coeff_lo_in_ao[imp_lo_idx, i0:i1]
+    for (i0, i1) in [(0, nocc), (nocc, coeff_lo_in_mo.shape[1])]:
+        coeff_imp = coeff_lo_in_mo[imp_lo_idx, i0:i1]
         u, s, vt = np.linalg.svd(coeff_imp, full_matrices=True)
         #print('u:', u.shape, 's:', s.shape, 'vt:', vt.shape)
         print_matrix('spade singular values: '+str(np.sum(s**2)), s)
         span = len(s)
         vt_span, vt_null = vt[:span], vt[span:]
         #c1 = np.einsum('ik,k,kj->ij', u, s, vt_span)
-        #print('diff:', np.sum(c1-coeff_lowdin_imp))
 
         spade_imp = np.einsum('mj,kj->mk', coeff_imp, vt_span)
         spade_env = np.einsum('mj,kj->mk', coeff_imp, vt_null)
@@ -34,21 +31,13 @@ def get_spade(coeff_mo_in_ao, coeff_lo_in_ao, ovlp_ao, imp_lo_idx, nocc):
     return coeff_spade_imp, coeff_spade_env, vt_all
 
 
-def get_projection_diabatization(fock_in_ao, fock_in_lo,
-                                 coeff_mo_in_ao, coeff_lo_in_ao,
-                                 ovlp_ao,
+def get_projection_diabatization(fock_in_ao, coeff_lo_in_ao, ovlp_ao,
                                  lo_idx, nelectrons, direction=1, thresh=1e-6):
     """
     orbitals from projection-operator diabatization (POD)
     in the form: [[impurity occupied, impurity virtual], [environment occupied, environment virtual]]
     """
-    if not isinstance(fock_in_lo, np.ndarray):
-        s_half_inv = get_ortho_basis(ovlp_ao)[1]
-        fock_in_lo = np.einsum('ij,jk,kl->il', s_half_inv, fock_in_ao, s_half_inv)
-    if isinstance(coeff_mo_in_ao, np.ndarray):
-        if not isinstance(coeff_lo_in_ao, np.ndarray):
-            s_half = get_ortho_basis(ovlp_ao)[0]
-            coeff_lo_in_ao = np.einsum('ij,jk->ik', s_half, coeff_mo_in_ao)
+    fock_in_lo = np.einsum('mp,mn,nq->pq', coeff_lo_in_ao, fock_in_ao, coeff_lo_in_ao)
 
     imp_lo_idx, env_lo_idx = lo_idx
     aa, bb, ab = np.ix_(imp_lo_idx, imp_lo_idx), np.ix_(env_lo_idx, env_lo_idx), np.ix_(imp_lo_idx, env_lo_idx)
@@ -65,9 +54,8 @@ def get_projection_diabatization(fock_in_ao, fock_in_lo,
     w = np.einsum('ji,jk,kl->il', coeffs[0], fab, coeffs[1])
 
     # transform fragement coefficients from LO to AO basis
-    if isinstance(coeff_lo_in_ao, np.ndarray):
-        coeffs[0] = np.einsum('pk,mp->mk', coeffs[0], coeff_lo_in_ao[:,imp_lo_idx])
-        coeffs[1] = np.einsum('pk,mp->mk', coeffs[1], coeff_lo_in_ao[:,env_lo_idx])
+    coeffs[0] = np.einsum('mp,pk->mk', coeff_lo_in_ao[:,imp_lo_idx], coeffs[0])
+    coeffs[1] = np.einsum('mp,pk->mk', coeff_lo_in_ao[:,env_lo_idx], coeffs[1])
 
     if direction == 1: # impurity occupied orbitals to environment virtual
         e = energies[1][nelectrons[1]:, None] - energies[0][:nelectrons[0]]
@@ -126,6 +114,7 @@ if __name__ == '__main__':
     """
 
     frgm_idx = [[0, 1, 2], [3, 4, 5], [6, 7, 8]]
+    geom = atom.split('\n')[1:]
     nelectrons = [5, 0]
 
 
@@ -159,6 +148,8 @@ if __name__ == '__main__':
         for i in range(24):
             frgm_idx.append([8+i*3, 9+i*3, 10+i*3])
 
+        geom = atom.split(';')[:-1]
+
         basis = 'def2-svpd'
         nelectrons[0] = 15
 
@@ -180,15 +171,17 @@ if __name__ == '__main__':
     nelectrons[1] = nocc - nelectrons[0]
     print('nelectrons:', nelectrons)
 
-    ovlp = mf.get_ovlp()
-    #print_matrix('ovlp:', ovlp)
+    from pydmet.dmet_tda import runtda
+    nstates = 3
+    imp_list = [frgm_idx[0], [x for l in frgm_idx[1:] for x in l]]
 
-    s, v = np.linalg.eigh(ovlp)
-    s_half = np.einsum('ik,k,jk->ij', v, s**.5, v)
+    atomimp = ''
+    for i in imp_list[0]:
+        atomimp += geom[i]
+        atomimp += '\n'
+    runtda(atom, atomimp, charge, imp_list, functional, basis, nstates, nelectrons=nelectrons)
+    #sys.exit()
 
-    #s1 = np.einsum('ij,jk->ik', s_half, s_half)
-    #print_matrix('s1:', s1)
-    #print('diff:', np.sum(ovlp-s1))
 
     from wavefunction_analysis.entanglement.mol_lo_tools import partition_lo_to_imps
     from wavefunction_analysis.entanglement.fragment_entangle import get_localized_orbital, get_localized_orbital_rdm, get_embedding_orbital
@@ -204,9 +197,6 @@ if __name__ == '__main__':
     # local orbital depends on the localization method
     coeff_lo_in_ao = get_localized_orbital(mol, coeff_mo_in_ao, method='lowdin')
     #print_matrix('coeff_lo_in_ao', coeff_lo_in_ao)
-    #print('diff:', np.sum(coeff_lowdin-coeff_lo_in_ao))
-    dm_lo_in_ao = get_localized_orbital_rdm(coeff_lo_in_ao, coeff_mo_in_ao, ovlp_ao, nocc, extra_orb=extra_orb)
-
     frgm_lo_idx = partition_lo_to_imps(frgm_idx, mol, coeff_lo_in_ao, min_weight=0.8)
 
     ifrgm = 0
@@ -219,10 +209,10 @@ if __name__ == '__main__':
     print('env_lo_idx:', env_lo_idx.shape, '\n', env_lo_idx)
 
 
-    coeff_spade_imp, coeff_spade_env, vt_1 = get_spade(coeff_mo_in_ao, None, ovlp, imp_lo_idx, nocc)
+    coeff_spade_imp, coeff_spade_env, vt_1 = get_spade(coeff_mo_in_ao, coeff_lo_in_ao, ovlp_ao, imp_lo_idx, nocc)
     print('coeff_spade_imp:', coeff_spade_imp[0].shape, coeff_spade_imp[1].shape, 'coeff_spade_env:', coeff_spade_env[0].shape, coeff_spade_env[1].shape)
 
-    coeff_spade_imp, coeff_spade_env, vt_2 = get_spade(coeff_mo_in_ao, None, ovlp, env_lo_idx, nocc)
+    coeff_spade_imp, coeff_spade_env, vt_2 = get_spade(coeff_mo_in_ao, coeff_lo_in_ao, ovlp_ao, env_lo_idx, nocc)
     print('coeff_spade_imp:', coeff_spade_imp[0].shape, coeff_spade_imp[1].shape, 'coeff_spade_env:', coeff_spade_env[0].shape, coeff_spade_env[1].shape)
 
     #print_matrix('vt1:', vt_1[0].T)
@@ -231,21 +221,10 @@ if __name__ == '__main__':
     #print_matrix('s2:', s2[:5,-5:])
 
     fock_in_ao = mf.get_fock()
-    coeff_pod_imp, coeff_pod_env = get_projection_diabatization(fock_in_ao, None, coeff_mo_in_ao, None, ovlp, [imp_lo_idx, env_lo_idx], nelectrons, direction=1)
+    coeff_pod_imp, coeff_pod_env = get_projection_diabatization(fock_in_ao, coeff_lo_in_ao, ovlp_ao, [imp_lo_idx, env_lo_idx], nelectrons, direction=1)
     print('coeff_pod_imp:', coeff_pod_imp[0].shape, coeff_pod_imp[1].shape, 'coeff_pod_env:', coeff_pod_env[0].shape, coeff_pod_env[1].shape)
 
     weights = get_solvent_contribution(mol, frgm_idx, coeff_pod_env[1])
     print_matrix('weights:', weights)
 
     #print_matrix('ovlp:', np.einsum('mi,mj->ij', coeff_pod_imp[0], coeff_pod_env[1]))
-
-    from pydmet.dmet_tda import runtda
-    nstates = 3
-    imp_list = [frgm_idx[0], [x for l in frgm_idx[1:] for x in l]]
-
-    geom = atom.split(';')[:-1]
-    atomimp = ''
-    for i in imp_list[0]:
-        atomimp += geom[i]
-        atomimp += '\n'
-    runtda(atom, atomimp, charge, imp_list, functional, basis, nstates, nelectrons=nelectrons)

@@ -77,9 +77,11 @@ class Embedding():
         from pydmet.orbital_projection import get_projection_diabatization
         fock_ao = mf.get_fock()
         ovlp = mf.get_ovlp()
-        coeff_mo_in_ao = mf.mo_coeff
-        pod_imp, pod_env = get_projection_diabatization(fock_ao, None, coeff_mo_in_ao, None,
-                                                        ovlp, self.lo_idx, nelectrons, direction=direction)
+        pod_imp, pod_env = get_projection_diabatization(fock_ao,
+                                                        self.coeff_lo_in_ao,
+                                                        ovlp, self.lo_idx,
+                                                        nelectrons,
+                                                        direction=direction)
 
         self.coeff_eo_in_ao = np.concatenate((pod_imp[0], pod_env[1]), axis=1)
         self.nelec = nelectrons[0]*2
