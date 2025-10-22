@@ -62,7 +62,7 @@ def get_projection_diabatization(fock_in_ao, coeff_lo_in_ao, ovlp_ao,
         #print_matrix('e0:', es[0])
         #print_matrix('e1:', es[1])
         #print_matrix('e:', e)
-        amps = np.einsum('ia,ai->ai', w[:nelectrons[0], nelectrons[1]:], e)
+        amps = np.einsum('ia,ai->ai', w[:nelectrons[0], nelectrons[1]:], 1./e)
         diff = np.einsum('ai,bi->ab', amps, amps)
 
         e, v = np.linalg.eigh(diff)
@@ -74,7 +74,7 @@ def get_projection_diabatization(fock_in_ao, coeff_lo_in_ao, ovlp_ao,
 
     elif direction == 2: # environment occupied orbitals to impurity virtual
         e = es[0][nelectrons[0]:, None] - es[1][:nelectrons[1]]
-        amps = np.einsum('ai,ai->ai', w[nelectrons[0]:, :nelectrons[1]], e)
+        amps = np.einsum('ai,ai->ai', w[nelectrons[0]:, :nelectrons[1]], 1./e)
         diff = np.einsum('ai,aj->ij', amps, amps)
 
         e, v = np.linalg.eigh(diff)
@@ -85,18 +85,19 @@ def get_projection_diabatization(fock_in_ao, coeff_lo_in_ao, ovlp_ao,
 
 
 def get_solvent_contribution(mol, frgm_idx, coeff_eo_in_ao):
+    norb = coeff_eo_in_ao.shape[1]
     weights = []
 
     aoslices = mol.aoslice_by_atom()
     for env_idx in frgm_idx:
-        w = 0.
+        w = np.zeros(norb)
         for ia in env_idx:
             p0, p1 = aoslices[ia,2:]
-            w += np.einsum('mi,mi->', coeff_eo_in_ao[p0:p1], coeff_eo_in_ao[p0:p1])
+            w += np.einsum('mi,mi->i', coeff_eo_in_ao[p0:p1], coeff_eo_in_ao[p0:p1])
         weights.append(w)
 
     weights = np.array(weights)
-    return (weights/np.linalg.norm(weights))
+    return np.einsum('fi,i->fi', weights, 1./np.sum(weights, axis=0))
 
 
 
@@ -139,19 +140,52 @@ if __name__ == '__main__':
 
     if len(sys.argv) > 1:
         from wavefunction_analysis.utils.sec_mole import read_symbols_coords
+        from wavefunction_analysis.utils.sec_mole import get_molecular_center
         from wavefunction_analysis.utils.pyscf_parser import build_atom
 
         xyzfile = sys.argv[1]
         symbols, coords = read_symbols_coords(xyzfile)
         atom = build_atom(symbols, coords)
-        frgm_idx = [list(range(8))]
-        for i in range(24):
-            frgm_idx.append([8+i*3, 9+i*3, 10+i*3])
-
         geom = atom.split(';')[:-1]
 
-        basis = 'def2-svpd'
-        nelectrons[0] = 15
+        if 'acrolein' in xyzfile:
+            frgm_idx = [list(range(8))]
+            for i in range(24):
+                frgm_idx.append([8+i*3, 9+i*3, 10+i*3])
+
+            basis = 'def2-svpd'
+            nelectrons[0] = 15
+        elif 'iodide' in xyzfile:
+            frgm_idx = [[0]]
+            for i in range(96):
+                frgm_idx.append([1+i*3, 2+i*3, 3+i*3])
+
+            idx = []
+            f = frgm_idx[0]
+            sym = []
+            for k in f:
+                sym.append(symbols[k])
+            moc0 = get_molecular_center(sym, coords[f], 'mass')
+            for i, f in enumerate(frgm_idx[1:]):
+                sym = []
+                for k in f:
+                    sym.append(symbols[k])
+                moc = get_molecular_center(sym, coords[f], 'mass')
+                if np.linalg.norm(moc-moc0) < 4.:
+                    idx.append(i+1)
+
+            frgm_idx2 = [frgm_idx[0]]
+            for i in range(1, len(frgm_idx)):
+                if i in idx: # add to impurity region
+                    frgm_idx2[0].extend(frgm_idx[i])
+                else:
+                    frgm_idx2.append(frgm_idx[i])
+            frgm_idx = frgm_idx2
+            print('frgm_idx:', frgm_idx)
+
+            charge = -1
+            basis = '6-31g'
+            nelectrons[0] = 54 + len(idx)*10
 
 
     mol = gto.M(
@@ -171,7 +205,6 @@ if __name__ == '__main__':
     nelectrons[1] = nocc - nelectrons[0]
     print('nelectrons:', nelectrons)
 
-    from pydmet.dmet_tda import runtda
     nstates = 3
     imp_list = [frgm_idx[0], [x for l in frgm_idx[1:] for x in l]]
 
@@ -179,8 +212,20 @@ if __name__ == '__main__':
     for i in imp_list[0]:
         atomimp += geom[i]
         atomimp += '\n'
-    runtda(atom, atomimp, charge, imp_list, functional, basis, nstates, nelectrons=nelectrons)
-    #sys.exit()
+
+    #from pydmet.dmet_tda import runtda
+    #runtda(atom, atomimp, charge, imp_list, functional, basis, nstates, nelectrons=nelectrons)
+    from pydmet.embedding import Embedding
+    from pydmet.dmet_tda import solve_tda, full_mol
+    aomf = full_mol(atom, charge, functional, basis)
+    embed = Embedding(aomf, imp_list, 1e-6, 1, nelectrons)
+    eomf = embed.get_eomf(aomf)
+    ene_eo_tda, amp_eo_tda = solve_tda(eomf, nstates, term='eo', verbose=5)
+
+    weights = get_solvent_contribution(mol, frgm_idx, embed.pod_env[1])
+    print_matrix('weights:', weights)
+
+    sys.exit()
 
 
     from wavefunction_analysis.entanglement.mol_lo_tools import partition_lo_to_imps
