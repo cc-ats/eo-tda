@@ -71,6 +71,7 @@ def get_projection_diabatization(fock_in_ao, coeff_lo_in_ao, ovlp_ao,
         v = np.einsum('ab,pa->pb', v[:,idx], coeffs[1][:,nelectrons[1]:])
         #coeffs[1] = np.concatenate((coeffs[1][:,:nelectrons[1]], v), axis=1)
         return ([coeffs[0][:,:nelectrons[0]], coeffs[0][:,nelectrons[0]:]], [coeffs[1][:,:nelectrons[1]], v])
+        #return ([coeffs[0][:,:nelectrons[0]], coeffs[0][:,nelectrons[0]:]], [coeffs[1][:,:nelectrons[1]], coeffs[1][:,nelectrons[1]:]])
 
     elif direction == 2: # environment occupied orbitals to impurity virtual
         e = es[0][nelectrons[0]:, None] - es[1][:nelectrons[1]]
@@ -84,20 +85,24 @@ def get_projection_diabatization(fock_in_ao, coeff_lo_in_ao, ovlp_ao,
         return ([coeffs[0][:,:nelectrons[0]], coeffs[0][:,nelectrons[0]:]], [v, coeffs[1][:,nelectrons[1]:]])
 
 
-def get_solvent_contribution(mol, frgm_idx, coeff_eo_in_ao, ovlp_ao):
-    norb = coeff_eo_in_ao.shape[1]
+def get_solvent_contribution(mol, frgm_list, coeff_mo_in_ao, coeff_lo_in_ao, ovlp_ao):
+    norb = coeff_mo_in_ao.shape[1]
     weights = []
 
-    aoslices = mol.aoslice_by_atom()
-    for env_idx in frgm_idx:
-        w = np.zeros(norb)
-        for ia in env_idx:
-            p0, p1 = aoslices[ia,2:]
-            w += np.einsum('mi,mn,ni->i', coeff_eo_in_ao[p0:p1], ovlp_ao[p0:p1,p0:p1], coeff_eo_in_ao[p0:p1])
+    coeff = np.einsum('mp,mn,ni->pi', coeff_lo_in_ao, ovlp_ao, coeff_mo_in_ao)
+
+    from pydmet import mol_lo_tools
+    lo_idx_list = mol_lo_tools.partition_lo_to_frags(
+        frgm_list, mol=mol, coeff_ao_lo=coeff_lo_in_ao,
+        min_weight=0.8
+    )
+
+    for i, lo_idx in enumerate(lo_idx_list):
+        w = np.einsum('pi,pi->i', coeff[lo_idx], coeff[lo_idx])
         weights.append(w)
 
     weights = np.array(weights)
-    return np.einsum('fi,i->fi', weights, 1./np.sum(weights, axis=0))
+    return weights
 
 
 
@@ -222,12 +227,12 @@ if __name__ == '__main__':
     aomf = full_mol(atom, charge, functional, basis)
     embed = Embedding(aomf, imp_list, 1e-6, 1, nelectrons)
     eomf = embed.get_eomf(aomf)
-    ene_eo_tda, amp_eo_tda = solve_tda(eomf, nstates, term='eo', verbose=5)
 
     ovlp_ao = mf.get_ovlp()
-    #weights = get_solvent_contribution(mol, frgm_idx, embed.pod_env[1], ovlp_ao)
-    weights = get_solvent_contribution(mol, frgm_idx, eomf.mo_coeff[:,nelectrons[0]:], ovlp_ao)
+    weights = get_solvent_contribution(mol, frgm_idx, eomf.mo_coeff[:,nelectrons[0]:], embed.coeff_lo_in_ao, ovlp_ao)
     print_matrix('weights:', weights)
+
+    ene_eo_tda, amp_eo_tda = solve_tda(eomf, nstates, term='eo', verbose=5)
 
     sys.exit()
 
