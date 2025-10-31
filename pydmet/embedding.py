@@ -84,7 +84,7 @@ class Embedding():
                                                         direction=direction)
 
         self.coeff_eo_in_ao = np.concatenate((pod_imp[0], pod_env[1]), axis=1)
-        self.nelec = nelectrons[0]*2
+        self.nelec = nelectrons[direction-1]*2
 
 
     def get_eomf(self, mf):
@@ -97,6 +97,7 @@ class Embedding():
         fock_ao  = mf.get_fock()
 
         coeff_eo_in_ao = self.coeff_eo_in_ao
+        print('coeff_eo_in_ao:', coeff_eo_in_ao.shape)
         # (C_eo *  C_eo^T) * S as the projector from the right
         proj = np.einsum('mi,ni,nl->ml', coeff_eo_in_ao, coeff_eo_in_ao, ovlp_ao)
         fock_ao = np.einsum('nm,nl,ls->ms', proj, fock_ao, proj)

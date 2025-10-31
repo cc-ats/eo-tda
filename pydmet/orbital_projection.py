@@ -123,6 +123,7 @@ if __name__ == '__main__':
     geom = atom.split('\n')[1:]
     nelectrons = [5, 0]
 
+    xyzfile = 'water_3.xyz'
 
     #atom = """
     #  C    0.0000000    0.5575780   -0.0238971
@@ -155,18 +156,29 @@ if __name__ == '__main__':
         atom = build_atom(symbols, coords)
         geom = atom.split(';')[:-1]
 
+        qm_natoms, n_waters = 1, 1
         if 'acrolein' in xyzfile:
-            frgm_idx = [list(range(8))]
-            for i in range(24):
-                frgm_idx.append([8+i*3, 9+i*3, 10+i*3])
-
+            qm_natoms, n_waters = 8, 24
             basis = 'def2-svpd'
             nelectrons[0] = 15
+        elif 'olu' in xyzfile:
+            qm_natoms, n_waters = 21, 30
+            basis = '6-31g*'
+            nelectrons[0] = 64
+            charge = -1
+        elif 'hbdi' in xyzfile:
+            qm_natoms, n_waters = 27, 30
+            basis = '6-31g*'
+            nelectrons[0] = 57
+            charge = -1
         elif 'iodide' in xyzfile:
-            frgm_idx = [[0]]
-            for i in range(96):
-                frgm_idx.append([1+i*3, 2+i*3, 3+i*3])
+            qm_natoms, n_waters = 1, 96
 
+        frgm_idx = [list(range(qm_natoms))]
+        for i in range(n_waters):
+            frgm_idx.append([qm_natoms+i*3, qm_natoms+1+i*3, qm_natoms+2+i*3])
+
+        if 'iodide' in xyzfile:
             idx = []
             f = frgm_idx[0]
             sym = []
@@ -208,6 +220,8 @@ if __name__ == '__main__':
     e = mf.kernel()
     print('energy:', e)
 
+    ovlp_ao = mf.get_ovlp()
+
     nocc = mol.nelectron // 2
     nelectrons[1] = nocc - nelectrons[0]
     print('nelectrons:', nelectrons)
@@ -224,15 +238,30 @@ if __name__ == '__main__':
     #runtda(atom, atomimp, charge, imp_list, functional, basis, nstates, nelectrons=nelectrons)
     from pydmet.embedding import Embedding
     from pydmet.dmet_tda import solve_tda, full_mol
+    from pyscf.tools.cubegen import orbital as plot_orbital
     aomf = full_mol(atom, charge, functional, basis)
-    embed = Embedding(aomf, imp_list, 1e-6, 1, nelectrons)
-    eomf = embed.get_eomf(aomf)
 
-    ovlp_ao = mf.get_ovlp()
-    weights = get_solvent_contribution(mol, frgm_idx, eomf.mo_coeff[:,nelectrons[0]:], embed.coeff_lo_in_ao, ovlp_ao)
-    print_matrix('weights:', weights)
+    cubefile0 = xyzfile.replace('../', '').replace('/', '_').split('.xyz')[0]
+    nelec = aomf.nelec//2
+    for i in range(nelec-3, nelec+3):
+        cubefile = cubefile0 + '_mo_'+str(i+1)+'.cube'
+        plot_orbital(mol, cubefile, aomf.mo_coeff[:,i])
 
-    ene_eo_tda, amp_eo_tda = solve_tda(eomf, nstates, term='eo', verbose=5)
+    for (option, es_type) in [(1, 'ctts'), (2, 'ctfs')]:
+        embed = Embedding(aomf, imp_list, 1e-6, option, nelectrons)
+        eomf = embed.get_eomf(aomf)
+
+        nelec = eomf.nelec//2
+        coeff = eomf.mo_coeff[:,nelec-3:nelec+3]
+        weights = get_solvent_contribution(mol, frgm_idx, coeff, embed.coeff_lo_in_ao, ovlp_ao)
+        print_matrix(es_type+' weights:', weights)
+
+        for i in range(len(coeff)):
+            cubefile = es_type + '_' + cubefile0 + '_mo_'+str(i+nelec-2)+'.cube'
+            plot_orbital(mol, cubefile, coeff[:,i])
+
+        print(es_type+' excitation')
+        ene_eo_tda, amp_eo_tda = solve_tda(eomf, nstates, term='eo', verbose=5)
 
     sys.exit()
 
